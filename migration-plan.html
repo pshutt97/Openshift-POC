@@ -1,0 +1,368 @@
+Enterprise JFrog Migration to OpenShift - Blue-Green Flow
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JFrog Artifactory HA Migration to OpenShift</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #2c5282 0%, #1a365d 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .main-content {
+            padding: 3rem 2rem;
+        }
+        
+        .phase-section {
+            margin-bottom: 3rem;
+            border-left: 4px solid #2c5282;
+            padding-left: 2rem;
+            position: relative;
+        }
+        
+        .phase-number {
+            position: absolute;
+            left: -2.5rem;
+            top: 0;
+            width: 4rem;
+            height: 4rem;
+            background: #2c5282;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 12px rgba(44, 82, 130, 0.3);
+        }
+        
+        h2 {
+            color: #2c5282;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        h3 {
+            color: #2d3748;
+            font-size: 1.3rem;
+            margin: 1.5rem 0 1rem 0;
+        }
+        
+        p {
+            margin-bottom: 1rem;
+            color: #4a5568;
+        }
+        
+        ol {
+            margin: 1rem 0 1rem 2rem;
+            padding: 0;
+        }
+        
+        li {
+            margin-bottom: 0.8rem;
+            color: #4a5568;
+        }
+        
+        .warning-box {
+            background: #fffaf0;
+            border-left: 4px solid #ed8936;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .warning-title {
+            color: #c05621;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .warning-title::before {
+            content: "⚠️";
+            margin-right: 0.5rem;
+        }
+        
+        .note-box {
+            background: #f0fff4;
+            border-left: 4px solid #48bb78;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .note-title {
+            color: #276749;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .risk-section {
+            background: #fff5f5;
+            border: 2px solid #fc8181;
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .risk-section h3 {
+            color: #c53030;
+            border-bottom: 2px solid #fc8181;
+            padding-bottom: 0.5rem;
+        }
+        
+        .summary-box {
+            background: #ebf8ff;
+            border: 2px solid #4299e1;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .summary-box h3 {
+            color: #2b6cb0;
+            border-bottom: 2px solid #4299e1;
+            padding-bottom: 0.5rem;
+        }
+        
+        ul.tools-list {
+            list-style: none;
+            margin-left: 0;
+        }
+        
+        ul.tools-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        ul.tools-list li:last-child {
+            border-bottom: none;
+        }
+        
+        footer {
+            background: #f7fafc;
+            padding: 2rem;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .main-content {
+                padding: 1.5rem;
+            }
+            
+            .phase-section {
+                border-left: none;
+                padding-left: 0;
+                margin-left: 0;
+            }
+            
+            .phase-number {
+                display: none;
+            }
+            
+            h2 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Enterprise JFrog Migration to OpenShift</h1>
+            <p class="subtitle">Blue-Green Deployment Strategy for Artifactory HA, Xray HA & Catalog</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="intro">
+                <p>Migrating a running enterprise JFrog stack from VM-based architecture with Oracle RAC, LDAP, NFS, and Apache blue-green routing to a Helm-deployed OpenShift environment requires careful planning. This guide prioritizes data integrity, minimal downtime, and preservation of existing enterprise dependencies while decoupling the application layer into immutable containers.</p>
+            </div>
+
+            <!-- Phase 1 -->
+            <div class="phase-section">
+                <div class="phase-number">1</div>
+                <h2>Phase 1: Architecture Validation & Prerequisites</h2>
+                <p>Before touching production, validate that the OpenShift cluster can consume existing external resources without performance degradation.</p>
+                
+                <h3>Network & Storage Connectivity Verification</h3>
+                <ol>
+                    <li><strong>Oracle RAC:</strong> Verify connectivity from OpenShift pods to RAC VIPs. Ensure firewall rules allow traffic on Oracle listener ports (default 1521) and connection strings are resolvable from within pod network.</li>
+                    <li><strong>NFS Shares:</strong> Test mount points from temporary debug pods against existing NFS storage. Validate latency and throughput; containerized I/O on NFS can behave differently than VM-mounted filesystems.</li>
+                    <li><strong>LDA P:</strong> Confirm bind credentials and schema compatibility for service accounts accessing AD/LDAP from within the OpenShift namespace.</li>
+                </ol>
+
+                <h3>Chart & Value Mapping</h3>
+                <ul>
+                    <li>Deploy official JFrog Helm charts (Artifactory, Xray, Platform/Catalog) in non-production staging namespace</li>
+                    <li>Map current directories (<code>artifacts-internal</code>, <code>data</code>, <code>logs</code>, <code>backup</code>) to OpenShift Persistent Volume Claims backed by NFS storage class</li>
+                    <li>Ensure persistence block in <code>values.yaml</code> points directly to existing NFS paths to preserve data continuity</li>
+                </ul>
+
+                <div class="note-box">
+                    <div class="note-title">Database Schema Compatibility</div>
+                    <p>Run JFrog database upgrade utility against clone of Oracle RAC instance to ensure target Artifactory/Xray version supports existing schema.</p>
+                </div>
+            </div>
+
+            <!-- Phase 2 -->
+            <div class="phase-section">
+                <div class="phase-number">2</div>
+                <h2>Phase 2: Green Environment Provisioning (Parallel Deployment)</h2>
+                <p>Spin up the "Green" environment on OpenShift while the "Blue" (VMs) remains live.</p>
+
+                <ol>
+                    <li><strong>Secret Management Injection:</strong> Convert LDAP credentials, Oracle DB passwords, and license keys into OpenShift Secrets. Configure Helm chart to reference these secrets—never hardcode values.</li>
+                    
+                    <li><strong>Application Deployment (Read-Only Mode):</strong> Install Helm releases pointing to existing Oracle RAC and NFS paths. Initialize instances but keep them from writing to active transaction logs until cutover.</li>
+                    
+                    <li><strong>Health Check & Warm-up:</strong>
+                        <ul>
+                            <li>Allow Green nodes to start indexing artifacts from shared NFS</li>
+                            <li>Verify binary cache is populated and search indices are built using existing data</li>
+                            <li>Confirm LDAP authentication flows successfully</li>
+                            <li>Verify Oracle RAC connectivity with no lock contention from Blue VMs</li>
+                        </ul>
+                    </li>
+                </ol>
+
+                <div class="warning-box">
+                    <div class="warning-title">Critical Warning</div>
+                    <p>Since both Blue and Green share the same DB/NFS, there is risk of race conditions if both try to index or write simultaneously. Strategy relies on strictly sequential cutover.</p>
+                </div>
+            </div>
+
+            <!-- Phase 3 -->
+            <div class="phase-section">
+                <div class="phase-number">3</div>
+                <h2>Phase 3: Blue-Green Cutover Strategy</h2>
+                <p>The critical path where you minimize downtime using existing Apache VHOSTs to route traffic from Blue to Green.</p>
+
+                <ol>
+                    <li><strong>Pre-Cut Over Freeze:</strong>
+                        <ul>
+                            <li>Announce maintenance window</li>
+                            <li>Pause CI/CD pipelines consuming Artifacts to prevent new writes to Blue system</li>
+                            <li><strong>Stop Writes:</strong> Enable "Read-Only" mode on Blue VMs via Admin UI or CLI</li>
+                        </ul>
+                    </li>
+
+                    <li><strong>Data Synchronization Window:</strong> Since both systems share DB/NFS, sync ensures Green nodes have fully processed pending transactions left in DB by Blue nodes. Wait for Green "System Status" to report <code>Healthy</code> and <code>Indexing Complete</code>.</li>
+
+                    <li><strong>DNS/VHOST Switch (The Switch):</strong>
+                        <ul>
+                            <li>Modify Apache VHOST configuration (or OpenShift Route/Ingress controller)</li>
+                            <li>Update virtual host definitions to proxy traffic to Green OpenShift Service endpoints instead of Blue VM IPs</li>
+                            <li>Ensure DNS TTLs were lowered prior to this event to prevent client-side caching delays</li>
+                        </ul>
+                    </li>
+
+                    <li><strong>Traffic Validation:</strong> Direct internal test users to new endpoint. Verify artifact pulls/pushes, Xray scans, and LDAP logins work correctly.</li>
+                </ol>
+            </div>
+
+            <!-- Phase 4 -->
+            <div class="phase-section">
+                <div class="phase-number">4</div>
+                <h2>Phase 4: Post-Migration Stabilization & Decommissioning</h2>
+
+                <ol>
+                    <li><strong>Write Lock Release:</strong> Once Green is confirmed stable and handling traffic, shut down Blue VMs or stop their services to prevent accidental dual-write scenarios. Remove Blue entries from Apache load balancer completely.</li>
+
+                    <li><strong>License & Node Identity Adjustment:</strong> In some JFrog versions, node IDs are tied to hostname/IP. Verify new OpenShift pods have accepted license and report as valid nodes in Cluster UI. May need to transfer license token explicitly if hardware-bound.</li>
+
+                    <li><strong>Cleanup:</strong> After stability confirmed for 24-48 hours:
+                        <ul>
+                            <li>Shut down and deprovision VMs</li>
+                            <li>Remove old Apache VHOST rules pointing to VMs</li>
+                            <li>Archive old infrastructure configurations</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <!-- Risk Mitigation -->
+            <div class="risk-section">
+                <h3>⚠ Critical Risk Mitigation Points</h3>
+                
+                <h4>Oracle RAC Lock Contention</h4>
+                <p>Since you're sharing the DB, the biggest risk is Green pods trying to write to tables Blue VMs are locking. <strong>Recommendation:</strong> Perform the "Stop Writes" phase aggressively. Do not run Blue and Green in parallel with active writes to the same DB unless extensively tested.</p>
+
+                <h4>NFS Permissions</h4>
+                <p>Containerized JFrog processes often run under specific non-root UID (e.g., `1000`). Ensure your NFS export permissions and `fsGroup` in OpenShift SecurityContextConstraints match exactly what the VM user had, otherwise you will face "Permission Denied" errors on binary store.</p>
+
+                <h4>Xray Indexing</h4>
+                <p>Moving from VM to OCP changes how Xray indexes artifacts. Ensure memory limits for Xray pods in Helm chart are sufficient to rebuild indices from massive NFS store without OOM kills.</p>
+            </div>
+
+            <!-- Tools Summary -->
+            <div class="summary-box">
+                <h3>Required Tools Summary</h3>
+                <ul class="tools-list">
+                    <li><strong>OpenShift CLI (`oc`) and Helm</strong></li>
+                    <li><strong>JFrog CLI</strong> — For validation commands (check status, check connectivity)</li>
+                    <li><strong>Apache HTTP Server</strong> — To manage VHOST switch (or OpenShift Routes if moving LB to OCP)</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>This migration strategy leverages existing infrastructure investment while modernizing the compute layer. It avoids full data migration complexity by utilizing shared storage, but demands strict control over the "dual-active" period to avoid database corruption.</p>
+            <p style="margin-top: 1rem;">Last Updated: June 2026 | For technical support: <a href="https://proton.me/support/lumo">Proton Support</a></p>
+        </footer>
+    </div>
+</body>
+</html>

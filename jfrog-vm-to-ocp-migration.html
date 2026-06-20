@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JFrog VM → OpenShift Migration Guide</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#080C10;
+  --s1:#0D1117;
+  --s2:#161B22;
+  --s3:#1E2530;
+  --border:#2A3340;
+  --border2:#374454;
+  --text:#C9D1D9;
+  --muted:#7A8899;
+  --head:#E6EDF3;
+  --code-bg:#0A0E14;
+
+  --oracle:#F97316;
+  --nfs:#22C55E;
+  --ldap:#A78BFA;
+  --apache:#FBBF24;
+  --ocp:#EF4444;
+  --jfrog:#34D399;
+  --xray:#60A5FA;
+  --catalog:#FB923C;
+  --helm:#9B59B6;
+
+  --p0:#6366F1;
+  --p1:#3B82F6;
+  --p2:#06B6D4;
+  --p3:#F97316;
+  --p4:#22C55E;
+  --p5:#A78BFA;
+  --p6:#FBBF24;
+  --p7:#EF4444;
+  --p8:#34D399;
+  --p9:#60A5FA;
+  --p10:#F472B6;
+  --p11:#818CF8;
+
+  --warn-bg:#1A1200;
+  --warn-border:#F59E0B;
+  --danger-bg:#1A0A0A;
+  --danger-border:#EF4444;
+  --info-bg:#0A1628;
+  --info-border:#3B82F6;
+  --success-bg:#061A10;
+  --success-border:#22C55E;
+
+  --font-mono:'SF Mono','Consolas','Cascadia Code','JetBrains Mono','Fira Code',monospace;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);font-size:14px;line-height:1.65}
+
+/* ── HEADER ─────────────────────────────────────────────────────── */
+.hdr{background:linear-gradient(160deg,#0A0E14 0%,#0D1B2A 60%,#111827 100%);border-bottom:1px solid var(--border);padding:40px 0 32px}
+.hdr-inner{max-width:1080px;margin:0 auto;padding:0 24px}
+.hdr-eye{font-family:var(--font-mono);font-size:10px;letter-spacing:.25em;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+.hdr-title{font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--head);line-height:1.15;margin-bottom:8px}
+.hdr-title span{color:var(--jfrog)}
+.hdr-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:20px;letter-spacing:.05em}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;border:1px solid}
+.badge.oracle{color:var(--oracle);border-color:var(--oracle);background:rgba(249,115,22,.08)}
+.badge.nfs{color:var(--nfs);border-color:var(--nfs);background:rgba(34,197,94,.08)}
+.badge.ldap{color:var(--ldap);border-color:var(--ldap);background:rgba(167,139,250,.08)}
+.badge.ocp{color:var(--ocp);border-color:var(--ocp);background:rgba(239,68,68,.08)}
+.badge.helm{color:var(--helm);border-color:var(--helm);background:rgba(155,89,182,.08)}
+.badge.bg{color:var(--apache);border-color:var(--apache);background:rgba(251,191,36,.08)}
+.badge.artif{color:var(--jfrog);border-color:var(--jfrog);background:rgba(52,211,153,.08)}
+.badge.xray{color:var(--xray);border-color:var(--xray);background:rgba(96,165,250,.08)}
+
+/* ── SECTION WRAPPER ─────────────────────────────────────────────── */
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+.section{padding:40px 0}
+.section+.section{border-top:1px solid var(--border)}
+.section-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+
+/* ── ARCHITECTURE DIAGRAM ────────────────────────────────────────── */
+.arch-wrap{display:grid;grid-template-columns:1fr 48px 1fr;gap:0;align-items:start}
+.arch-col{background:var(--s2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.arch-col-head{padding:10px 14px;font-family:var(--font-mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.arch-col-head.blue{color:var(--apache);background:rgba(251,191,36,.06)}
+.arch-col-head.green{color:var(--jfrog);background:rgba(52,211,153,.06)}
+.arch-body{padding:14px}
+.arch-tier{margin-bottom:10px}
+.arch-tier:last-child{margin-bottom:0}
+.arch-tier-label{font-family:var(--font-mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.arch-row{display:flex;flex-wrap:wrap;gap:6px}
+.arch-box{font-family:var(--font-mono);font-size:10px;padding:5px 10px;border-radius:4px;border:1px solid;white-space:nowrap;line-height:1.4}
+.arch-box.artif{color:var(--jfrog);border-color:var(--jfrog);background:rgba(52,211,153,.07)}
+.arch-box.xray{color:var(--xray);border-color:var(--xray);background:rgba(96,165,250,.07)}
+.arch-box.cat{color:var(--catalog);border-color:var(--catalog);background:rgba(251,146,60,.07)}
+.arch-box.oracle{color:var(--oracle);border-color:var(--oracle);background:rgba(249,115,22,.07)}
+.arch-box.nfs{color:var(--nfs);border-color:var(--nfs);background:rgba(34,197,94,.07)}
+.arch-box.ldap{color:var(--ldap);border-color:var(--ldap);background:rgba(167,139,250,.07)}
+.arch-box.apache{color:var(--apache);border-color:var(--apache);background:rgba(251,191,36,.07)}
+.arch-box.ocp{color:var(--ocp);border-color:var(--ocp);background:rgba(239,68,68,.07)}
+.arch-box.helm{color:var(--helm);border-color:var(--helm);background:rgba(155,89,182,.07)}
+.arch-arrow-col{display:flex;align-items:center;justify-content:center}
+.arch-arrow{font-size:20px;color:var(--muted)}
+.arch-connector{font-family:var(--font-mono);font-size:9px;color:var(--muted);text-align:center;padding:4px 0;letter-spacing:.05em}
+.arch-shared{background:rgba(34,197,94,.03);border:1px dashed rgba(34,197,94,.3);border-radius:4px;padding:6px 10px;margin-top:8px}
+.arch-shared-label{font-family:var(--font-mono);font-size:9px;color:rgba(34,197,94,.7);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+
+/* ── PIPELINE NAVIGATOR ──────────────────────────────────────────── */
+.pipeline{background:var(--s1);border:1px solid var(--border);border-radius:6px;padding:20px 0;overflow-x:auto;white-space:nowrap}
+.pipeline-inner{display:inline-flex;align-items:center;padding:0 24px;min-width:100%}
+.phase-node{display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;flex-shrink:0}
+.phase-node:hover .pnode-circle{filter:brightness(1.3);transform:scale(1.08)}
+.pnode-circle{width:36px;height:36px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:700;transition:.15s;background:var(--s1)}
+.pnode-label{font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-align:center;margin-top:5px;max-width:70px;white-space:normal;line-height:1.3;color:var(--muted)}
+.pipeline-connector{height:2px;width:28px;flex-shrink:0;margin-bottom:20px;opacity:.4}
+
+/* ── DECISION CALLOUT ────────────────────────────────────────────── */
+.decision{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:6px;padding:20px}
+.decision-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--apache);margin-bottom:12px}
+.decision-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.decision-opt{background:var(--s2);border:1px solid var(--border2);border-radius:5px;padding:14px}
+.decision-opt-head{font-family:var(--font-mono);font-size:11px;font-weight:700;margin-bottom:8px}
+.decision-opt-head.a{color:var(--apache)}
+.decision-opt-head.b{color:var(--jfrog)}
+.decision-opt ul{list-style:none;display:flex;flex-direction:column;gap:5px}
+.decision-opt li{font-size:12px;color:var(--text);padding-left:14px;position:relative;line-height:1.5}
+.decision-opt li::before{content:'·';position:absolute;left:4px;color:var(--muted)}
+.opt-badge{display:inline-block;font-family:var(--font-mono);font-size:9px;padding:1px 6px;border-radius:2px;margin-left:6px}
+.opt-badge.rec{background:rgba(52,211,153,.15);color:var(--jfrog);border:1px solid rgba(52,211,153,.3)}
+.opt-badge.sim{background:rgba(96,165,250,.12);color:var(--xray);border:1px solid rgba(96,165,250,.3)}
+
+/* ── PHASE CARDS ─────────────────────────────────────────────────── */
+.phase-cards{display:flex;flex-direction:column;gap:6px}
+.phase-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.phase-card.open{border-color:var(--border2)}
+.phase-card-header{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;user-select:none;transition:.1s}
+.phase-card-header:hover{background:var(--s3)}
+.ph-num{font-family:var(--font-mono);font-size:11px;font-weight:700;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid}
+.ph-info{flex:1;min-width:0}
+.ph-title{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--head)}
+.ph-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.ph-tag{font-family:var(--font-mono);font-size:9px;padding:1px 7px;border-radius:2px;border:1px solid;letter-spacing:.07em}
+.ph-chevron{color:var(--muted);transition:.2s;flex-shrink:0;font-size:12px}
+.phase-card.open .ph-chevron{transform:rotate(90deg)}
+.phase-body{display:none;padding:0 18px 18px;border-top:1px solid var(--border)}
+.phase-card.open .phase-body{display:block}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:0;margin-top:14px}
+.step{display:flex;gap:12px;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;left:11px;top:26px;bottom:-4px;width:1px;background:var(--border)}
+.step-num{width:22px;height:22px;border-radius:50%;background:var(--s3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--muted);flex-shrink:0;margin-top:2px;z-index:1}
+.step-content{flex:1;padding-bottom:14px}
+.step-text{font-size:13px;color:var(--text);line-height:1.6}
+.step-text strong{color:var(--head);font-weight:600}
+
+/* code blocks */
+.code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-top:8px;color:#A9B2BC;line-height:1.6;overflow-x:auto;white-space:pre}
+.code .c{color:#5A6880} /* comment */
+.code .k{color:var(--xray)} /* keyword */
+.code .s{color:var(--jfrog)} /* string */
+.code .n{color:var(--catalog)} /* name/var */
+.code .o{color:var(--oracle)} /* operator/value */
+
+/* callout boxes within steps */
+.callout{border-radius:4px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.6;border-left:3px solid}
+.callout.warn{background:var(--warn-bg);border-color:var(--warn-border);color:#D4A72C}
+.callout.danger{background:var(--danger-bg);border-color:var(--danger-border);color:#F87171}
+.callout.info{background:var(--info-bg);border-color:var(--info-border);color:#93C5FD}
+.callout.success{background:var(--success-bg);border-color:var(--success-border);color:#86EFAC}
+
+/* inline tags within steps */
+.tag{font-family:var(--font-mono);font-size:10px;padding:1px 6px;border-radius:2px;border:1px solid}
+.tag.oracle{color:var(--oracle);border-color:var(--oracle);background:rgba(249,115,22,.08)}
+.tag.nfs{color:var(--nfs);border-color:var(--nfs);background:rgba(34,197,94,.08)}
+.tag.ldap{color:var(--ldap);border-color:var(--ldap);background:rgba(167,139,250,.08)}
+.tag.ocp{color:var(--ocp);border-color:var(--ocp);background:rgba(239,68,68,.08)}
+.tag.artif{color:var(--jfrog);border-color:var(--jfrog);background:rgba(52,211,153,.08)}
+.tag.xray{color:var(--xray);border-color:var(--xray);background:rgba(96,165,250,.08)}
+.tag.cat{color:var(--catalog);border-color:var(--catalog);background:rgba(251,146,60,.08)}
+.tag.apache{color:var(--apache);border-color:var(--apache);background:rgba(251,191,36,.08)}
+.tag.helm{color:var(--helm);border-color:var(--helm);background:rgba(155,89,182,.08)}
+
+/* sub-heading inside phase body */
+.ph-sub{font-family:var(--font-mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
+.ph-sub:first-child{border-top:none;padding-top:0;margin-top:14px}
+
+/* verify checklist */
+.checks{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.check-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text)}
+.check-item::before{content:'□';font-family:var(--font-mono);color:var(--muted);flex-shrink:0;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-inner">
+    <div class="hdr-eye">// enterprise platform migration runbook</div>
+    <h1 class="hdr-title">JFrog Platform<span> → </span>OpenShift</h1>
+    <div class="hdr-sub">Artifactory HA · Xray HA · Catalog HA · Oracle RAC · NFS · LDAP · Blue-Green</div>
+    <div class="badges">
+      <span class="badge artif">Artifactory HA</span>
+      <span class="badge xray">Xray HA</span>
+      <span class="badge oracle">Oracle RAC</span>
+      <span class="badge nfs">NFS</span>
+      <span class="badge ldap">LDAP</span>
+      <span class="badge ocp">OpenShift</span>
+      <span class="badge helm">Helm 3</span>
+      <span class="badge bg">Blue-Green</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ARCHITECTURE -->
+  <section class="section">
+    <div class="section-title">// architecture: before → after</div>
+    <div class="arch-wrap">
+      <!-- BEFORE -->
+      <div class="arch-col">
+        <div class="arch-col-head blue">◉ BLUE — Current (VM)</div>
+        <div class="arch-body">
+          <div class="arch-tier">
+            <div class="arch-tier-label">Edge / Ingress</div>
+            <div class="arch-row"><div class="arch-box apache">Apache HTTPd<br><small>Blue-Green VHOSTs</small></div></div>
+          </div>
+          <div class="arch-connector">↓ ProxyPass ↓</div>
+          <div class="arch-tier">
+            <div class="arch-tier-label">JFrog Platform (RHEL 9 VMs)</div>
+            <div class="arch-row">
+              <div class="arch-box artif">Artifactory HA<br><small>2-3 VMs</small></div>
+              <div class="arch-box xray">Xray HA<br><small>2-3 VMs</small></div>
+              <div class="arch-box cat">Catalog HA<br><small>2+ VMs</small></div>
+            </div>
+          </div>
+          <div class="arch-connector">↓ shared backends ↓</div>
+          <div class="arch-tier">
+            <div class="arch-tier-label">Data Layer</div>
+            <div class="arch-row">
+              <div class="arch-box oracle">Oracle RAC<br><small>SCAN VIP</small></div>
+              <div class="arch-box nfs">NFS<br><small>Filestore</small></div>
+              <div class="arch-box ldap">LDAP<br><small>Auth</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="arch-arrow-col"><div class="arch-arrow">⟶</div></div>
+
+      <!-- AFTER -->
+      <div class="arch-col">
+        <div class="arch-col-head green">◉ GREEN — Target (OpenShift)</div>
+        <div class="arch-body">
+          <div class="arch-tier">
+            <div class="arch-tier-label">Edge / Ingress</div>
+            <div class="arch-row">
+              <div class="arch-box apache">Apache HTTPd<br><small>VHOSTs → OCP Route</small></div>
+              <div class="arch-box ocp">OCP Router<br><small>HA Proxy / Route</small></div>
+            </div>
+          </div>
+          <div class="arch-connector">↓ Route / Service ↓</div>
+          <div class="arch-tier">
+            <div class="arch-tier-label">OpenShift Namespace: jfrog-green</div>
+            <div class="arch-row">
+              <div class="arch-box artif">Artifactory HA<br><small>3+ Pods · Helm</small></div>
+              <div class="arch-box xray">Xray HA<br><small>3+ Pods · Helm</small></div>
+              <div class="arch-box cat">Catalog HA<br><small>2+ Pods · Helm</small></div>
+            </div>
+          </div>
+          <div class="arch-connector">↓ unchanged backends ↓</div>
+          <div class="arch-tier">
+            <div class="arch-tier-label">Data Layer (unchanged — same instances)</div>
+            <div class="arch-row">
+              <div class="arch-box oracle">Oracle RAC<br><small>existing schemas</small></div>
+              <div class="arch-box nfs">NFS PV/PVC<br><small>same exports</small></div>
+              <div class="arch-box ldap">LDAP<br><small>same provider</small></div>
+            </div>
+          </div>
+          <div class="arch-shared">
+            <div class="arch-shared-label">// ongoing blue-green within OCP</div>
+            <div class="arch-row" style="margin-top:4px">
+              <div class="arch-box apache" style="font-size:9px">Apache VHOST flip → blue ns</div>
+              <div class="arch-box ocp" style="font-size:9px">Apache VHOST flip → green ns</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ORACLE SCHEMA DECISION -->
+  <section class="section">
+    <div class="section-title">// critical decision: oracle schema migration strategy</div>
+    <div class="decision">
+      <div class="decision-title">⚠ Choose Before Phase 7 — Determines Downtime Posture</div>
+      <div class="decision-grid">
+        <div class="decision-opt">
+          <div class="decision-opt-head a">Option A — Shared Schema + Maintenance Window <span class="opt-badge sim">SIMPLER</span></div>
+          <ul>
+            <li>Green OCP pods point directly to existing Oracle schemas</li>
+            <li>Schedule a maintenance window: quiesce Blue VMs</li>
+            <li>Start Green pods — they claim DB ownership cleanly</li>
+            <li>Flip Apache VHOSTs; exit maintenance window</li>
+            <li>Downtime: 15–30 min (pod startup + validation)</li>
+            <li>Risk: cannot run blue and green simultaneously against same schema</li>
+          </ul>
+        </div>
+        <div class="decision-opt">
+          <div class="decision-opt-head b">Option B — Cloned Schema + Final Sync <span class="opt-badge rec">RECOMMENDED</span></div>
+          <ul>
+            <li>DBA clones each schema: <code>expdp</code> → <code>impdp</code> to staging schemas</li>
+            <li>Deploy Green against staging schemas for full validation</li>
+            <li>Schedule brief window: stop Blue, run delta <code>expdp→impdp</code>, cut over Oracle schema targets</li>
+            <li>NFS filestore is shared directly (no copy needed)</li>
+            <li>Downtime: under 10 min for final delta + VHOST flip</li>
+            <li>Requires: Oracle DBA, validated staging environment, coordination</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE NAVIGATOR -->
+  <section class="section">
+    <div class="section-title">// migration phases — click to navigate</div>
+    <div class="pipeline">
+      <div class="pipeline-inner" id="pipeline">
+        <!-- Nodes injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- PHASE CARDS -->
+  <section class="section">
+    <div class="section-title">// phase details</div>
+    <div class="phase-cards" id="phase-cards">
+    </div>
+  </section>
+
+</div><!-- /wrap -->
+
+<script>
+const phases = [
+  {
+    id:0, color:'var(--p0)', label:'Discovery\n& Inventory',
+    title:'Phase 0 — Discovery & Inventory',
+    tags:[
+      {t:'All Products',c:'artif'},{t:'Oracle RAC',c:'oracle'},{t:'NFS',c:'nfs'},{t:'LDAP',c:'ldap'},{t:'Apache',c:'apache'}
+    ],
+    sub:[
+      {title:'JFrog Platform Versions & Config', steps:[
+        {t:'Record exact product versions from each VM: <code>cat $JFROG_HOME/*/app/info/version.txt</code>. Note Artifactory, Xray, Catalog versions — the Helm chart version must match.'},
+        {t:'Capture <strong>system.yaml</strong> from all three products. Diff against defaults — everything non-default must be reproduced in Helm values or a ConfigMap override.'},
+        {t:'Export LDAP configuration from Artifactory Admin UI → Security → LDAP Settings. Record: LDAP URL, Base DN, User DN pattern, Search filter, Bind DN + password, Manager DN.'},
+        {t:'Inventory all custom <strong>user plugins</strong> (groovy files in <code>$JFROG_HOME/artifactory/var/etc/artifactory/plugins/</code>). These must be mounted into OCP pods via ConfigMap or init container.'},
+        {t:'Extract <strong>master.key</strong> and <strong>join.key</strong>: <code>cat $JFROG_HOME/artifactory/var/etc/security/master.key</code>. These must match exactly in OCP or all encrypted data is lost.'},
+        {t:'Count HA member nodes per product and confirm HA license seat count covers target OCP replica count.'},
+        {t:'Profile current VM resource usage: CPU and memory high-water marks for sizing OCP Pods. Aim for requests at P75, limits at P99.', callout:{type:'info',msg:'Artifactory pods are memory-heavy. 8 vCPU / 24–32 GB RAM per pod is typical for medium deployments. Xray: 4 vCPU / 16 GB. Catalog: 4 vCPU / 8 GB.'}},
+      ]},
+      {title:'Oracle RAC', steps:[
+        {t:'Document: SCAN VIP hostname, listener port (usually 1521), service names per product (Artifactory, Xray, Catalog each have their own schema/user).'},
+        {t:'Record Oracle DB version and whether Oracle Wallet or password-based authentication is used. If Wallet: plan distribution to OCP pods via Secret + volume mount.'},
+        {t:'Validate each product\'s schema owner has required privileges — Artifactory needs DBA-equivalent or explicit grants on its schema.'},
+        {t:'Check existing <strong>connection pool settings</strong> in system.yaml (maxPoolSize, etc.) — these become critical in a multi-pod HA topology.'},
+      ]},
+      {title:'NFS', steps:[
+        {t:'Document NFS server IP/hostname, export paths per product, mount options (<code>rw,sync,hard,nfsvers=4.1</code> is typical), and current sizes: <code>df -h /mount/paths</code>.'},
+        {t:'Capture the UID/GID of the <code>artifactory</code> OS user on VMs: <code>id artifactory</code>. OCP pods run as the same UID (default 1030 for JFrog) — NFS export options must accommodate this.', callout:{type:'warn',msg:'If NFS has root_squash enabled, the jfrog UID/GID must be added to the NFS exports or the pods will get permission denied. Confirm with the NFS admin.'}},
+        {t:'Measure current NFS IOPS baseline — Artifactory filestore is read-heavy during artifact serving. Flag if NFS throughput might be a bottleneck at OCP pod scale.'},
+      ]},
+      {title:'Apache & Network', steps:[
+        {t:'Collect all Apache VHOST config files for Artifactory, Xray, and Catalog (blue and green stanzas). Note all ProxyPass/ProxyPassReverse rules, custom headers (X-JFrog-Override-Base-Url), SSL cert paths, timeout values.'},
+        {t:'Inventory all firewall/ACL rules between components. You will need the same rules between OCP worker node CIDRs and Oracle RAC, NFS server, and LDAP server.'},
+        {t:'Document the custom base URL set in Artifactory (Admin → General Configuration → Custom Base URL). This must be preserved exactly.'},
+        {t:'List all external integrations: webhooks, CI/CD tokens, build info clients, JFrog CLI configurations. These need updated endpoint URLs only if the FQDN changes.'},
+      ]},
+    ]
+  },
+
+  {
+    id:1, color:'var(--p1)', label:'OCP Infra\nReadiness',
+    title:'Phase 1 — OpenShift Infrastructure Readiness',
+    tags:[{t:'OpenShift',c:'ocp'},{t:'Helm',c:'helm'},{t:'Sizing',c:'artif'}],
+    sub:[
+      {title:'Cluster & Namespace Setup', steps:[
+        {t:'Size OCP worker nodes. JFrog Pods are resource-intensive — ensure nodes can schedule all pods without overcommit: <strong>3+ worker nodes</strong> with at minimum 16 vCPU / 64 GB RAM each (assuming Artifactory HA 3-pod + Xray HA 3-pod on same nodes).'},
+        {t:'Create OCP namespaces / projects:<div class="code"><span class="k">oc</span> new-project jfrog-green\n<span class="k">oc</span> new-project jfrog-blue   <span class="c"># for ongoing blue-green post-migration</span></div>'},
+        {t:'Add the JFrog Helm repository and confirm chart availability:<div class="code"><span class="k">helm</span> repo add jfrog https://charts.jfrog.io\n<span class="k">helm</span> repo update\n<span class="k">helm</span> search repo jfrog/ --versions | head -30</div>'},
+        {t:'Configure <strong>SecurityContextConstraints (SCC)</strong>. JFrog containers require a specific UID (1030). Create a custom SCC or grant <code>anyuid</code> to the namespace service accounts:', callout:{type:'warn',msg:'Never grant anyuid cluster-wide. Create a targeted SCC binding scoped to the jfrog-green namespace service account only.'}},
+        {t:'Create image pull secrets for registry.jfrog.io (requires a valid JFrog license account):<div class="code"><span class="k">oc</span> create secret docker-registry jfrog-registry \\\n  --docker-server=registry.jfrog.io \\\n  --docker-username=&lt;user&gt; \\\n  --docker-password=&lt;token&gt; \\\n  -n jfrog-green\n<span class="k">oc</span> secrets link default jfrog-registry --for=pull -n jfrog-green</div>'},
+        {t:'Define and apply <strong>ResourceQuota</strong> and <strong>LimitRange</strong> for the namespace to prevent unbounded resource consumption.'},
+        {t:'Verify OCP version compatibility with target JFrog Helm chart versions. Check JFrog\'s support matrix: minimum OCP 4.x versions vary by JFrog release.'},
+      ]},
+    ]
+  },
+
+  {
+    id:2, color:'var(--p2)', label:'Network &\nSecurity',
+    title:'Phase 2 — Network & Security Preparation',
+    tags:[{t:'NetworkPolicy',c:'ocp'},{t:'Oracle RAC',c:'oracle'},{t:'LDAP',c:'ldap'},{t:'TLS',c:'artif'}],
+    sub:[
+      {title:'Connectivity Verification', steps:[
+        {t:'From a debug pod in <code>jfrog-green</code>, verify reachability to all backends before deploying JFrog pods:<div class="code"><span class="k">oc</span> run nettest --image=nicolaka/netshoot --rm -it --restart=Never -n jfrog-green -- bash\n\n<span class="c"># Oracle RAC SCAN VIP</span>\nnc -zv scan-vip.domain.com 1521\n\n<span class="c"># LDAP</span>\nnc -zv ldap.domain.com 389\nnc -zv ldap.domain.com 636  <span class="c"># if LDAPS</span>\n\n<span class="c"># NFS</span>\nrpcinfo -p nfs-server.domain.com\nshowmount -e nfs-server.domain.com</div>'},
+        {t:'Create OCP <strong>NetworkPolicies</strong> to allow required egress from pods in <code>jfrog-green</code> to Oracle RAC (port 1521), LDAP (389/636), and NFS (2049). If using OCP Egress Firewall (EgressNetworkPolicy), add explicit allow rules.', callout:{type:'warn',msg:'Oracle RAC uses the SCAN listener on 1521 for initial connection, but may redirect to individual node VIP listeners on dynamic high ports (1521 or above). Ensure RAC listener.ora is configured with STATIC registration or that all node listener ports are open from OCP CIDR.'}},
+      ]},
+      {title:'TLS & Apache VHOST Preparation', steps:[
+        {t:'Create OCP Route TLS secrets using existing certificates:<div class="code"><span class="k">oc</span> create secret tls artifactory-tls \\\n  --cert=./certs/artif.crt --key=./certs/artif.key \\\n  -n jfrog-green\n<span class="k">oc</span> create secret tls xray-tls \\\n  --cert=./certs/xray.crt --key=./certs/xray.key \\\n  -n jfrog-green</div>'},
+        {t:'<strong>Pre-stage Apache VHOST green stanzas</strong> (commented out) pointing to OCP Route FQDNs. This lets you activate the cutover with a single config swap + graceful reload — no editing under pressure:<div class="code"><span class="c"># /etc/httpd/conf.d/artifactory-green.conf (pre-staged, inactive)</span>\n&lt;VirtualHost *:443&gt;\n  ServerName artifactory.corp.com\n  <span class="c"># ProxyPass / http://blue-artif-vip:8082/    &lt;-- blue (currently active)</span>\n  ProxyPass / https://artif-green.ocp.internal/\n  ProxyPassReverse / https://artif-green.ocp.internal/\n  RequestHeader set X-JFrog-Override-Base-Url https://artifactory.corp.com\n&lt;/VirtualHost&gt;</div>'},
+        {t:'If Oracle connections use SSL/wallet: create a Kubernetes Secret containing the Oracle wallet files (<code>cwallet.sso</code>, <code>ewallet.p12</code>, <code>tnsnames.ora</code>) for pod volume mounting.'},
+        {t:'Reduce DNS TTL for Artifactory/Xray/Catalog FQDNs to 60 seconds now — allows faster propagation if a DNS-based cutover is needed in Phase 9.'},
+      ]},
+    ]
+  },
+
+  {
+    id:3, color:'var(--p3)', label:'Oracle RAC\nConnectivity',
+    title:'Phase 3 — Oracle RAC Connectivity Validation',
+    tags:[{t:'Oracle RAC',c:'oracle'},{t:'JDBC',c:'oracle'},{t:'DBA',c:'oracle'}],
+    sub:[
+      {title:'Service & Schema Preparation', steps:[
+        {t:'<strong>(Option B only)</strong> DBA creates cloned schemas using Data Pump for staging validation:<div class="code"><span class="c">-- Export existing Artifactory schema</span>\nexpdp artif_user/passwd@ARTIF_SVC \\\n  schemas=ARTIF_USER \\\n  dumpfile=artif_stage.dmp \\\n  directory=DATA_PUMP_DIR \\\n  logfile=artif_export.log\n\n<span class="c">-- Import to staging schema</span>\nimpdp system/passwd@ARTIF_SVC \\\n  schemas=ARTIF_USER \\\n  remap_schema=ARTIF_USER:ARTIF_STG \\\n  dumpfile=artif_stage.dmp \\\n  directory=DATA_PUMP_DIR</div>'},
+        {t:'DBA optionally creates dedicated Oracle service names for OCP connections (aids audit trail and connection isolation):<div class="code"><span class="c">-- On Oracle RAC, run on both nodes or via SRVCTL</span>\nEXEC DBMS_SERVICE.CREATE_SERVICE(\'ARTIF_OCP_SVC\',\'ARTIF_OCP_SVC\');\nEXEC DBMS_SERVICE.START_SERVICE(\'ARTIF_OCP_SVC\');\n<span class="c">-- Repeat for XRAY_OCP_SVC, CATALOG_OCP_SVC</span></div>'},
+      ]},
+      {title:'JDBC URL Format & Testing', steps:[
+        {t:'Construct JDBC URLs for Helm values. For Oracle RAC with SCAN, prefer the thin URL with failover descriptor:<div class="code">jdbc:oracle:thin:@(DESCRIPTION=\n  (FAILOVER=ON)(LOAD_BALANCE=OFF)\n  (ADDRESS=(PROTOCOL=TCP)(HOST=scan.domain.com)(PORT=1521))\n  (CONNECT_DATA=(SERVICE_NAME=artif_ocp_svc)\n               (FAILOVER_MODE=(TYPE=SELECT)(METHOD=BASIC))))</div>'},
+        {t:'Test the JDBC connection from a debug pod in <code>jfrog-green</code> before deploying any JFrog helm release:<div class="code"><span class="k">oc</span> run jdbc-test --image=openjdk:17 --rm -it --restart=Never -n jfrog-green -- bash\n\n<span class="c"># Download ojdbc11 and test</span>\ncurl -LO https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc11/21.9.0.0/ojdbc11-21.9.0.0.jar\njava -cp ojdbc11-21.9.0.0.jar \\\n  oracle.jdbc.driver.OracleDriver \\\n  &lt;test connection snippet&gt;</div>', callout:{type:'info',msg:'The Artifactory container image ships with ojdbc8.jar bundled under $JFROG_HOME/artifactory/app/third-party/jdbc/. You do not need to supply the Oracle JDBC driver — just the correct JDBC URL and credentials.'}},
+        {t:'Verify OCP pod CIDR is permitted by Oracle network ACLs (if DBMS_NETWORK_ACL_ADMIN grants are configured): run a connection test from a pod IP within the OCP CIDR and confirm no ORA-12537 or TNS permission errors.'},
+      ]},
+    ]
+  },
+
+  {
+    id:4, color:'var(--p4)', label:'NFS\nPV / PVC',
+    title:'Phase 4 — NFS Persistent Volume Setup',
+    tags:[{t:'NFS',c:'nfs'},{t:'PV/PVC',c:'ocp'},{t:'Storage',c:'artif'}],
+    sub:[
+      {title:'PersistentVolume Creation', steps:[
+        {t:'Create static PersistentVolumes pointing to existing NFS exports for each product. Use <code>ReadWriteMany</code> for all filestore paths (required for HA multi-pod):<div class="code"><span class="k">apiVersion:</span> v1\n<span class="k">kind:</span> PersistentVolume\n<span class="k">metadata:</span>\n  <span class="k">name:</span> artif-filestore-pv\n<span class="k">spec:</span>\n  <span class="k">capacity:</span>\n    <span class="k">storage:</span> 2Ti\n  <span class="k">accessModes:</span> [ReadWriteMany]\n  <span class="k">persistentVolumeReclaimPolicy:</span> Retain\n  <span class="k">nfs:</span>\n    <span class="k">server:</span> nfs.domain.com\n    <span class="k">path:</span> /exports/jfrog/artifactory/filestore\n  <span class="k">mountOptions:</span>\n    - rw\n    - sync\n    - hard\n    - nfsvers=4.1\n    - timeo=600\n    - retrans=3</div>'},
+        {t:'Create a corresponding PVC in <code>jfrog-green</code> with a <code>volumeName</code> selector to bind to the specific PV (avoid dynamic provisioner claiming the wrong volume).'},
+        {t:'Repeat the PV/PVC pattern for: Artifactory data dir, Xray data dir, Catalog data dir. Xray also needs a PVC for RabbitMQ or its message queue (if bundled).', callout:{type:'warn',msg:'Artifactory HA filestore (binarystore) MUST be ReadWriteMany. The data and log directories can be ReadWriteOnce per pod if using separate PVCs per replica, or RWX if shared. Match whatever your binarystore.xml specifies.'}},
+      ]},
+      {title:'Validation', steps:[
+        {t:'Deploy a test pod mounting all PVCs to confirm UID/GID read-write access:<div class="code"><span class="k">oc</span> run nfs-test --image=busybox --rm -it --restart=Never \\\n  -n jfrog-green \\\n  --overrides=\'{"spec":{"securityContext":{"runAsUser":1030,"fsGroup":1030},"volumes":[{"name":"artif","persistentVolumeClaim":{"claimName":"artif-filestore-pvc"}}],"containers":[{"name":"t","image":"busybox","command":["sh","-c","ls -la /data && touch /data/testwrite && echo OK"],"volumeMounts":[{"mountPath":"/data","name":"artif"}]}]}}\' -- sh\nExpected: OK</div>'},
+        {t:'Confirm filestore path matches what <code>binarystore.xml</code> expects. The path inside the container must align with the Helm chart\'s volume mount point (default: <code>/var/opt/jfrog/artifactory/data/filestore</code>).'},
+      ]},
+    ]
+  },
+
+  {
+    id:5, color:'var(--p5)', label:'Secrets &\nConfig',
+    title:'Phase 5 — Secrets & Configuration Migration',
+    tags:[{t:'master.key',c:'artif'},{t:'LDAP',c:'ldap'},{t:'Oracle',c:'oracle'},{t:'OCP Secrets',c:'ocp'}],
+    sub:[
+      {title:'OCP Secrets Creation', steps:[
+        {t:'Extract and create the Artifactory master key and join key secrets — these must be created <strong>before</strong> <code>helm install</code>:<div class="code"><span class="c"># Extract from existing Artifactory VM</span>\nMK=$(cat $JFROG_HOME/artifactory/var/etc/security/master.key)\nJK=$(cat $JFROG_HOME/artifactory/var/etc/security/join.key)\n\n<span class="k">oc</span> create secret generic artif-master-key \\\n  --from-literal=master-key="$MK" -n jfrog-green\n<span class="k">oc</span> create secret generic artif-join-key \\\n  --from-literal=join-key="$JK" -n jfrog-green</div>', callout:{type:'danger',msg:'The master.key and join.key from the existing installation must be used unchanged. A new key will render all existing encrypted data (encrypted properties, API keys stored in the DB) unreadable.'}},
+        {t:'Create database credential secrets for each product:<div class="code"><span class="k">oc</span> create secret generic artif-db-secret \\\n  --from-literal=db-url="jdbc:oracle:thin:@..." \\\n  --from-literal=db-user="artif_user" \\\n  --from-literal=db-password="&lt;pw&gt;" \\\n  -n jfrog-green\n\n<span class="c"># Repeat for xray-db-secret, catalog-db-secret</span></div>'},
+        {t:'Create the HA cluster license secret:<div class="code"><span class="k">oc</span> create secret generic artif-license \\\n  --from-literal=artifactory.cluster.license="$(cat artif.cluster.lic)" \\\n  -n jfrog-green</div>'},
+        {t:'Create a ConfigMap with the custom <code>binarystore.xml</code> pointing to the NFS filestore path:<div class="code"><span class="k">oc</span> create configmap artif-binarystore \\\n  --from-file=binarystore.xml=./binarystore.xml \\\n  -n jfrog-green</div>'},
+      ]},
+      {title:'System.yaml Overrides & Custom Plugins', steps:[
+        {t:'Prepare a <code>system.yaml</code> fragment capturing all non-default settings (LDAP, email server, custom base URL, proxy settings, JVM tuning). This will be injected via Helm values <code>artifactory.extraSystemYaml</code>.'},
+        {t:'Package any custom user plugins as a ConfigMap. They will be mounted at <code>/var/opt/jfrog/artifactory/etc/artifactory/plugins/</code> via <code>artifactory.extraVolumes</code> + <code>artifactory.extraVolumeMounts</code> in Helm values.'},
+        {t:'For Xray and Catalog: create their respective DB secrets and any custom config overrides in the same pattern.'},
+      ]},
+    ]
+  },
+
+  {
+    id:6, color:'var(--p6)', label:'Helm Values\nConfig',
+    title:'Phase 6 — Helm Values File Construction',
+    tags:[{t:'Helm',c:'helm'},{t:'Artifactory',c:'artif'},{t:'Xray',c:'xray'},{t:'Catalog',c:'cat'}],
+    sub:[
+      {title:'Artifactory HA values-artifactory-ha.yaml', steps:[
+        {t:'Key Helm values structure — do not embed credentials directly; reference secrets:<div class="code"><span class="k">artifactory:</span>\n  <span class="k">replicaCount:</span> 3\n  <span class="k">masterKeySecretName:</span> artif-master-key\n  <span class="k">joinKeySecretName:</span> artif-join-key\n  <span class="k">license:</span>\n    <span class="k">secret:</span> artif-license\n    <span class="k">dataKey:</span> artifactory.cluster.license\n  <span class="k">database:</span>\n    <span class="k">type:</span> oracle\n    <span class="k">driver:</span> oracle.jdbc.OracleDriver\n    <span class="k">url:</span> <span class="c"># set via existingSecret</span>\n    <span class="k">existingSecret:</span> artif-db-secret\n    <span class="k">userKey:</span> db-user\n    <span class="k">passwordKey:</span> db-password\n    <span class="k">urlKey:</span> db-url\n  <span class="k">persistence:</span>\n    <span class="k">existingClaim:</span> artif-filestore-pvc\n  <span class="k">customBinaryStoreXmlSecret:</span> artif-binarystore\n  <span class="k">extraSystemYaml:</span> |  <span class="c"># LDAP, baseUrl, proxy etc.</span>\n    shared:\n      security:\n        loginPrivileges:\n          allowBasic: true\n    security:\n      ldapSettings:\n        - key: ldap1\n          enabled: true\n          ldapUrl: ldap://ldap.domain.com:389/dc=corp,dc=com\n          ...\n  <span class="k">resources:</span>\n    <span class="k">requests:</span>\n      <span class="k">cpu:</span> "4"\n      <span class="k">memory:</span> 24Gi\n    <span class="k">limits:</span>\n      <span class="k">cpu:</span> "8"\n      <span class="k">memory:</span> 32Gi\n\n<span class="k">nginx:</span>\n  <span class="k">enabled:</span> false  <span class="c"># using external Apache + OCP Route</span>\n\n<span class="k">ingress:</span>\n  <span class="k">enabled:</span> false  <span class="c"># using OCP Route manifest</span></div>'},
+      ]},
+      {title:'OCP Route Manifests', steps:[
+        {t:'Create OCP Route resources separately (not via Helm ingress):<div class="code"><span class="k">apiVersion:</span> route.openshift.io/v1\n<span class="k">kind:</span> Route\n<span class="k">metadata:</span>\n  <span class="k">name:</span> artifactory-green\n  <span class="k">namespace:</span> jfrog-green\n<span class="k">spec:</span>\n  <span class="k">host:</span> artif-green.ocp.internal  <span class="c"># green hostname (pre-cutover)</span>\n  <span class="k">port:</span>\n    <span class="k">targetPort:</span> http\n  <span class="k">to:</span>\n    <span class="k">kind:</span> Service\n    <span class="k">name:</span> artifactory-ha-artifactory\n  <span class="k">tls:</span>\n    <span class="k">termination:</span> edge\n    <span class="k">insecureEdgeTerminationPolicy:</span> Redirect\n    <span class="k">certificate:</span> <span class="c"># ref from secret</span>\n    <span class="k">key:</span> <span class="c"># ref from secret</span></div>'},
+        {t:'Use a <strong>separate pre-cutover hostname</strong> (e.g., <code>artif-green.ocp.internal</code>) until Phase 9. The production FQDN remains pointing at the Apache+Blue path until the VHOST flip.'},
+      ]},
+      {title:'Xray & Catalog values', steps:[
+        {t:'Follow same pattern for Xray: Oracle DB external, NFS PVCs, joinKey shared with Artifactory, resource requests/limits. Xray\'s Helm chart requires the Artifactory URL — set to the internal OCP service DNS name (<code>http://artifactory-ha-artifactory.jfrog-green.svc.cluster.local:8082</code>).'},
+        {t:'Catalog: configure its Oracle DB connection and the Artifactory access URL. Catalog may require an Artifactory Access Token — create it as an OCP secret.'},
+      ]},
+    ]
+  },
+
+  {
+    id:7, color:'var(--p7)', label:'Green\nDeployment',
+    title:'Phase 7 — Green Environment Deployment (Helm)',
+    tags:[{t:'Helm Install',c:'helm'},{t:'Artifactory',c:'artif'},{t:'Xray',c:'xray'},{t:'Catalog',c:'cat'},{t:'OCP',c:'ocp'}],
+    sub:[
+      {title:'Deploy Order: Artifactory First', steps:[
+        {t:'<strong>Deploy Artifactory HA first</strong> — Xray and Catalog depend on a running Artifactory endpoint:<div class="code"><span class="k">helm</span> upgrade --install artifactory-ha jfrog/artifactory-ha \\\n  --version &lt;chart-version&gt; \\\n  -f values-artifactory-ha.yaml \\\n  -n jfrog-green \\\n  --timeout 25m \\\n  --wait</div>'},
+        {t:'Monitor pod startup and log output:<div class="code"><span class="k">oc</span> get pods -n jfrog-green -w\n<span class="k">oc</span> logs -f -l app=artifactory -n jfrog-green --max-log-requests=6\n\n<span class="c"># Wait for: "Artifactory successfully started"</span>\n<span class="k">oc</span> logs -n jfrog-green &lt;artif-pod&gt; | grep -i "successfully started"</div>'},
+        {t:'Confirm primary node joined the cluster and all member nodes are visible: Admin → High Availability → Cluster Members in Artifactory UI (via green Route hostname).'},
+      ]},
+      {title:'Deploy Xray HA', steps:[
+        {t:'<div class="code"><span class="k">helm</span> upgrade --install xray jfrog/xray \\\n  --version &lt;chart-version&gt; \\\n  -f values-xray.yaml \\\n  -n jfrog-green \\\n  --timeout 20m \\\n  --wait</div>'},
+        {t:'Verify Xray connects to Artifactory — check Xray logs for successful registration. In Artifactory Admin → Xray Settings, the green Xray instance should appear.'},
+      ]},
+      {title:'Deploy Catalog HA', steps:[
+        {t:'<div class="code"><span class="k">helm</span> upgrade --install catalog jfrog/catalog \\\n  --version &lt;chart-version&gt; \\\n  -f values-catalog.yaml \\\n  -n jfrog-green \\\n  --timeout 15m \\\n  --wait</div>'},
+        {t:'Confirm Catalog is connected and metadata is visible via Catalog UI (via green Route).'},
+        {t:'Verify Oracle connection pool health for all three products — check Artifactory Admin → Storage → Filestore and DB Connection Pool stats.'},
+      ]},
+    ]
+  },
+
+  {
+    id:8, color:'var(--p8)', label:'Validation\n& Testing',
+    title:'Phase 8 — Green Environment Validation',
+    tags:[{t:'QA',c:'artif'},{t:'HA Test',c:'ocp'},{t:'LDAP',c:'ldap'},{t:'Xray',c:'xray'}],
+    sub:[
+      {title:'Functional Validation', steps:[
+        {t:'<strong>LDAP authentication</strong>: Log in via the green Artifactory URL with an LDAP user account. Confirm groups and permissions are resolved correctly.'},
+        {t:'<strong>Repository integrity</strong>: Browse all repositories in green Artifactory. Compare repository count, artifact count, and storage totals against blue. Values should match (same DB/NFS).'},
+        {t:'<strong>Upload + download round-trip</strong>: Push a test artifact via JFrog CLI or REST API, download it, verify checksum. Test both small (<1 MB) and large (>500 MB) artifacts.'},
+        {t:'<strong>Xray scanning</strong>: Trigger a manual scan on a known artifact with known CVEs. Verify vulnerability results match what blue Xray shows.'},
+        {t:'<strong>Catalog metadata</strong>: Verify package metadata, component data, and policies are visible and correct in green Catalog.'},
+      ]},
+      {title:'HA & Resilience Testing', steps:[
+        {t:'<strong>Pod kill test</strong>: Delete one Artifactory pod and confirm the cluster continues serving requests without error:<div class="code"><span class="k">oc</span> delete pod &lt;artif-pod-0&gt; -n jfrog-green\n<span class="c"># Monitor: pod restarts, cluster reconverges</span>\n<span class="k">oc</span> get pods -n jfrog-green -w</div>'},
+        {t:'<strong>NFS fault test</strong>: Simulate a brief NFS interruption if possible in lower env; verify Artifactory handles NFS reconnection gracefully (hard mount with retrans handles this).'},
+        {t:'<strong>Oracle failover test</strong>: If Oracle RAC failover can be triggered in a non-prod context, confirm Artifactory\'s JDBC connection pool recovers via the FAILOVER_MODE descriptor.', callout:{type:'info',msg:'Oracle RAC TAF (Transparent Application Failover) with TYPE=SELECT will retry in-flight SELECT statements. Artifactory write transactions will fail and need retry at the application layer — confirm no data corruption occurs after a RAC node failover.'}},
+      ]},
+      {title:'Performance Baseline', steps:[
+        {t:'Run a representative load test (JFrog CLI batch upload/download or wrk/k6) against the green endpoint. Compare latency and throughput percentiles against blue baseline captured in Phase 0.'},
+        {t:'Review OCP resource consumption during load: confirm pods are not hitting CPU throttling or memory limits. Adjust Helm resources values if needed and re-deploy.'},
+      ]},
+    ]
+  },
+
+  {
+    id:9, color:'var(--p9)', label:'Blue-Green\nCutover',
+    title:'Phase 9 — Blue-Green Traffic Cutover',
+    tags:[{t:'Apache',c:'apache'},{t:'Zero Downtime',c:'nfs'},{t:'Rollback',c:'ocp'}],
+    sub:[
+      {title:'Pre-Cutover Checklist', steps:[
+        {t:'<div class="checks"><div class="check-item">All Phase 8 validation tests passed (no outstanding failures)</div><div class="check-item">Oracle delta sync completed (Option B) or maintenance window confirmed (Option A)</div><div class="check-item">Pre-staged Apache green VHOST configs are in place and syntax-validated</div><div class="check-item">Rollback procedure documented and tested (revert Apache + graceful reload)</div><div class="check-item">On-call / incident bridge open for cutover window</div><div class="check-item">Monitoring dashboards open for Apache error rate, OCP pod health, Oracle session counts</div></div>'},
+      ]},
+      {title:'Option A: Maintenance Window Cutover', steps:[
+        {t:'Announce maintenance. Set Artifactory to maintenance mode (if supported by your version): Admin → General → Maintenance Mode.'},
+        {t:'Stop or quiesce Blue Artifactory HA VMs (graceful shutdown: <code>$JFROG_HOME/artifactory/bin/artifactoryctl stop</code>).'},
+        {t:'Confirm all Oracle sessions from Blue VMs have disconnected (<code>SELECT username, machine FROM v$session WHERE username LIKE \'ARTIF%\'</code>).'},
+        {t:'Green Artifactory pods (already running against same DB) automatically become the sole active cluster. Verify green UI is fully up via green Route.'},
+        {t:'Flip Apache VHOSTs and reload:<div class="code"><span class="c"># Activate green stanzas</span>\ncp /etc/httpd/conf.d/artifactory-green.conf /etc/httpd/conf.d/artifactory.conf\n<span class="k">apachectl</span> configtest && <span class="k">apachectl</span> graceful\n\n<span class="c"># Repeat for xray, catalog VHOSTs</span></div>'},
+        {t:'Verify production FQDN resolves to green (OCP) Artifactory. Test a login and artifact download via the production URL.'},
+        {t:'Exit maintenance mode. Announce completion.'},
+      ]},
+      {title:'Option B: Live Cutover (no maintenance mode)', steps:[
+        {t:'DBA runs final incremental Oracle export/import for delta since staging clone. Duration is proportional to transaction volume during test period.'},
+        {t:'Update Green Helm values to point to production Oracle schemas (if it was pointing to staging schemas during Phase 8) and <code>helm upgrade</code>. Wait for pod restarts to complete.'},
+        {t:'Flip Apache VHOSTs exactly as above. Graceful reload = zero dropped connections.'},
+        {t:'Blue VMs remain running but traffic has shifted to Green. Monitor Apache access log error rates for 10 minutes.'},
+      ]},
+      {title:'Rollback Procedure', steps:[
+        {t:'<strong>Trigger condition</strong>: Error rate &gt; 1% sustained for 5 minutes, or critical functional failure.<div class="code"><span class="c"># Revert Apache to blue config</span>\ncp /etc/httpd/conf.d/artifactory-blue.conf /etc/httpd/conf.d/artifactory.conf\n<span class="k">apachectl</span> graceful\n<span class="c"># Blue VMs receive traffic again within seconds (graceful reload)</span></div>'},
+        {t:'If Option A (maintenance window): restart Blue VMs. They will re-claim DB connection since Green can be safely scaled down.', callout:{type:'danger',msg:'Never run both Blue VMs and Green OCP pods active against the same production Oracle schemas simultaneously. This will cause split-brain cluster corruption. In Option B, blue VMs must be gracefully stopped before Green touches production schemas.'}},
+      ]},
+    ]
+  },
+
+  {
+    id:10, color:'var(--p10)', label:'Stabilize\n& Monitor',
+    title:'Phase 10 — Stabilization Period',
+    tags:[{t:'Monitoring',c:'ocp'},{t:'Observability',c:'artif'},{t:'Runbooks',c:'nfs'}],
+    sub:[
+      {title:'2–4 Week Stabilization', steps:[
+        {t:'<strong>Keep Blue VMs powered off but preserved</strong> for a minimum of 2 weeks. Do not decommission until confidence is established in Green\'s stability under production load.'},
+        {t:'Set up OCP-native monitoring for JFrog pods: <ul style="margin:8px 0 0 16px;display:flex;flex-direction:column;gap:4px"><li>Prometheus scraping Artifactory\'s <code>/artifactory/api/v1/metrics</code> endpoint (requires Pro/Enterprise)</li><li>OCP built-in metrics (CPU, memory, pod restarts) via console Observe tab</li><li>Oracle session count and wait event alerts from existing Oracle monitoring</li><li>NFS I/O latency alerts from existing NFS monitoring</li></ul>'},
+        {t:'Key metrics to track in the first week: JVM heap utilization (target &lt;80% sustained), DB connection pool wait queue (should be 0 under normal load), pod restart count (should be 0), Xray scan queue depth, NFS read/write latency.'},
+        {t:'Update <strong>operational runbooks</strong>: replace VM service management steps (<code>systemctl start/stop artifactory</code>) with OCP equivalents (<code>oc scale / oc rollout restart / helm upgrade</code>).'},
+        {t:'Train ops team on OCP-specific troubleshooting: <code>oc logs</code>, <code>oc exec</code> into pods, <code>oc describe pod</code> for scheduling issues, <code>oc get events</code> for cluster events.'},
+      ]},
+    ]
+  },
+
+  {
+    id:11, color:'var(--p11)', label:'OCP Blue-Green\nOngoing',
+    title:'Phase 11 — Ongoing Blue-Green in OpenShift',
+    tags:[{t:'Helm Upgrade',c:'helm'},{t:'Blue-Green',c:'apache'},{t:'GitOps',c:'ocp'}],
+    sub:[
+      {title:'Blue-Green Deployment Pattern in OCP', steps:[
+        {t:'Maintain <strong>two Helm releases per product</strong> in separate namespaces (<code>jfrog-blue</code> and <code>jfrog-green</code>). Only one namespace is "active" (receiving production Apache VHOST traffic) at a time.'},
+        {t:'Upgrade procedure for future JFrog releases:<div class="code"><span class="c"># 1. Identify which namespace is INACTIVE (e.g., jfrog-blue)</span>\n<span class="c"># 2. Upgrade the inactive release</span>\n<span class="k">helm</span> upgrade artifactory-ha jfrog/artifactory-ha \\\n  --version &lt;new-chart-version&gt; \\\n  -f values-artifactory-ha.yaml \\\n  -n jfrog-blue \\\n  --timeout 20m --wait\n\n<span class="c"># 3. Apache VHOST update: point to jfrog-blue Route</span>\ncp /etc/httpd/conf.d/artifactory-blue.conf /etc/httpd/conf.d/artifactory.conf\n<span class="k">apachectl</span> graceful\n\n<span class="c"># 4. Monitor. If stable: upgrade the now-inactive green</span>\n<span class="k">helm</span> upgrade artifactory-ha jfrog/artifactory-ha \\\n  --version &lt;new-chart-version&gt; \\\n  -f values-artifactory-ha.yaml \\\n  -n jfrog-green --timeout 20m --wait</div>', callout:{type:'info',msg:'Both blue and green namespaces reference the SAME Oracle DB schemas and SAME NFS exports. The "inactive" namespace should have replicas scaled to 0 to avoid dual-active write contention. Scale up inactive, migrate traffic, then scale down previous active.'}},
+        {t:'OCP Route weighted routing alternative (if removing Apache dependency):<div class="code"><span class="k">apiVersion:</span> route.openshift.io/v1\n<span class="k">kind:</span> Route\n<span class="k">metadata:</span>\n  <span class="k">name:</span> artifactory\n<span class="k">spec:</span>\n  <span class="k">host:</span> artifactory.corp.com\n  <span class="k">to:</span>\n    <span class="k">kind:</span> Service\n    <span class="k">name:</span> artifactory-ha-green\n    <span class="k">weight:</span> 100\n  <span class="k">alternateBackends:</span>\n  - <span class="k">kind:</span> Service\n    <span class="k">name:</span> artifactory-ha-blue\n    <span class="k">weight:</span> 0  <span class="c"># flip to 100 to cut over</span></div>'},
+        {t:'Consider adopting <strong>OpenShift GitOps (Argo CD)</strong> to manage Helm releases declaratively — the blue/green "active" state becomes a Git-controlled variable, giving you a full audit trail and one-line rollback via git revert.'},
+        {t:'<strong>Blue VM decommission</strong> (after 2-week stabilization and OCP blue-green is proven): raise change record, power off and snapshot VMs, wait 30 days, then terminate. Retain snapshots per your retention policy.'},
+      ]},
+    ]
+  },
+];
+
+// Pipeline colors
+const phaseColors = ['var(--p0)','var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)','var(--p6)','var(--p7)','var(--p8)','var(--p9)','var(--p10)','var(--p11)'];
+
+// Build pipeline
+const pipeline = document.getElementById('pipeline');
+phases.forEach((p, i) => {
+  const node = document.createElement('div');
+  node.className = 'phase-node';
+  node.innerHTML = `<div class="pnode-circle" style="border-color:${p.color};color:${p.color}">${i}</div><div class="pnode-label">${p.label.replace('\n','<br>')}</div>`;
+  node.onclick = () => scrollToPhase(i);
+  pipeline.appendChild(node);
+  if (i < phases.length - 1) {
+    const conn = document.createElement('div');
+    conn.className = 'pipeline-connector';
+    conn.style.background = `linear-gradient(90deg, ${p.color}, ${phaseColors[i+1]})`;
+    conn.style.marginBottom = '20px';
+    pipeline.appendChild(conn);
+  }
+});
+
+// Build phase cards
+const container = document.getElementById('phase-cards');
+phases.forEach((p, i) => {
+  const card = document.createElement('div');
+  card.className = 'phase-card';
+  card.id = `phase-${i}`;
+
+  const tagHtml = p.tags.map(t => `<span class="ph-tag tag ${t.c}">${t.t}</span>`).join('');
+
+  let bodyHtml = '';
+  (p.sub || []).forEach(sec => {
+    bodyHtml += `<div class="ph-sub">${sec.title}</div>`;
+    bodyHtml += `<div class="steps">`;
+    sec.steps.forEach((s, si) => {
+      let calloutHtml = '';
+      if (s.callout) {
+        calloutHtml = `<div class="callout ${s.callout.type}">${s.callout.msg}</div>`;
+      }
+      bodyHtml += `<div class="step"><div class="step-num">${si+1}</div><div class="step-content"><div class="step-text">${s.t}</div>${calloutHtml}</div></div>`;
+    });
+    bodyHtml += `</div>`;
+  });
+
+  card.innerHTML = `
+    <div class="phase-card-header" onclick="togglePhase(${i})">
+      <div class="ph-num" style="border-color:${p.color};color:${p.color}">${i}</div>
+      <div class="ph-info">
+        <div class="ph-title">${p.title}</div>
+        <div class="ph-tags">${tagHtml}</div>
+      </div>
+      <div class="ph-chevron">▶</div>
+    </div>
+    <div class="phase-body">${bodyHtml}</div>
+  `;
+  container.appendChild(card);
+});
+
+function togglePhase(i) {
+  const card = document.getElementById(`phase-${i}`);
+  card.classList.toggle('open');
+}
+
+function scrollToPhase(i) {
+  const card = document.getElementById(`phase-${i}`);
+  if (!card.classList.contains('open')) card.classList.add('open');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
